@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 import os
 
 # Определение RBF Kernel в виде PyTorch-функции
@@ -154,7 +155,7 @@ scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
 # Разделение данных на тренировочную и тестовую выборки
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Обучение модели
 print("Starting training...")
@@ -163,16 +164,36 @@ models, classes = one_vs_all_train(X_train, y_train, C=0.5, gamma=0.5)
 # Предсказание
 print("Making predictions on the test set...")
 y_pred = one_vs_all_predict(X_test, models, classes)
-test_accuracy = np.mean(y_pred == y_test)
 
-# Результаты
-print(f"Точность на тестовой выборке (custom SVM): {test_accuracy:.2f}")
+# Подсчитываем метрики для многоклассовой задачи
+cm = confusion_matrix(y_test, y_pred)
 
-# Загрузка моделей из файлов и предсказание
-print("Loading models from files...")
-loaded_models = load_models(classes)
-print("Making predictions with loaded models...")
-y_pred_loaded = one_vs_all_predict(X_test, loaded_models, classes)
-loaded_accuracy = np.mean(y_pred_loaded == y_test)
-print(f"Точность на тестовой выборке (loaded models): {loaded_accuracy:.2f}")
+# Точность (Precision)
+precision = precision_score(y_test, y_pred, average='macro')  # усреднение по всем классам
+print(f"Точность на тестовой выборке (custom SVM): {precision:.2f}")
+
+# Полнота (Recall)
+recall = recall_score(y_test, y_pred, average='macro')  # усреднение по всем классам
+print(f"Полнота на тестовой выборке (custom SVM): {recall:.2f}")
+
+# F-мера (F1-Score)
+f1 = f1_score(y_test, y_pred, average='macro')  # усреднение по всем классам
+print(f"F-мера на тестовой выборке (custom SVM): {f1:.2f}")
+
+# Дополнительно, если нужно рассчитать метрики для каждого класса отдельно:
+for i in range(len(classes)):
+    cls = classes[i]
+    tp = cm[i, i]
+    fn = np.sum(cm[i, :]) - tp
+    fp = np.sum(cm[:, i]) - tp
+    tn = np.sum(cm) - (tp + fn + fp)
+    
+    # Точность, полнота и F1 для каждого класса
+    precision_class = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall_class = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1_class = (2 * precision_class * recall_class) / (precision_class + recall_class) if (precision_class + recall_class) > 0 else 0
+    
+    print(f"Для класса {cls}:")
+    print(f"  TP = {tp}, FN = {fn}, FP = {fp}, TN = {tn}")
+    print(f"  Точность: {precision_class:.2f}, Полнота: {recall_class:.2f}, F1: {f1_class:.2f}")
 
